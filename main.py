@@ -108,12 +108,31 @@ def draw_settings():
 
 def draw_game_screen(board_obj):
     SCREEN.fill((210, 220, 222))
-    btn_back.draw(SCREEN)  # Przycisk powrotu
+    btn_back.draw(SCREEN)
 
-    turn_surf = FONT_INFO.render("Tura: Gracz 1 (Białe)", True, BLACK)
+    # Dynamiczny napis tury
+    color_name = "Czerwone" if board_obj.turn == 1 else "Białe"
+    turn_surf = FONT_INFO.render(f"Tura: Gracz {board_obj.turn} ({color_name})", True, BLACK)
     SCREEN.blit(turn_surf, (current_w // 2 - turn_surf.get_width() // 2, 20))
 
     board_obj.draw(SCREEN)
+
+    winner = board_obj.check_winner()
+    if winner:
+        # Wybieramy tekst i kolor
+        winner_text = "WYGRYWA CZERWONY!" if winner == 1 else "WYGRYWA BIAŁY!"
+        text_color = (200, 0, 0) if winner == 1 else (50, 50, 50)
+
+        # Generujemy napis
+        msg_surf = FONT_TITLE.render(winner_text, True, text_color)
+
+        # Tworzymy tło, żeby napis był widoczny na środku szachownicy
+        bg_rect = msg_surf.get_rect(center=(current_w // 2, current_h // 2))
+        pygame.draw.rect(SCREEN, WHITE, bg_rect.inflate(40, 20), border_radius=20)
+        pygame.draw.rect(SCREEN, BLACK, bg_rect.inflate(40, 20), width=3, border_radius=20)
+
+        # Rysujemy napis
+        SCREEN.blit(msg_surf, bg_rect)
 
 
 def draw_temp_ui(title_text):
@@ -123,6 +142,7 @@ def draw_temp_ui(title_text):
 
 
 # --- GŁÓWNA PĘTLA GRY ---
+main_board = GameBoard(WIDTH, HEIGHT) # Inicjalizacja raz na start
 def main():
     clock = pygame.time.Clock()
     state = "MENU"
@@ -164,7 +184,21 @@ def main():
                 elif btn_fullscreen.is_clicked(event):
                     set_resolution(0, 0, fullscreen=True)
 
-            else:
+            elif state == "GAME_2P":
+
+                if btn_back.is_clicked(event):
+                    state = "MENU"
+
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    pos = pygame.mouse.get_pos()
+                    coords = main_board.get_clicked_pos(pos)
+                    if coords:
+                        main_board.select_piece(coords[0], coords[1])
+                    else:
+                        main_board.selected_piece = None
+                        main_board.valid_moves = {}
+
+            elif state in ["GAME_PC", "GAME_ONLINE", "STATS"]:
                 if btn_back.is_clicked(event):
                     state = "MENU"
 

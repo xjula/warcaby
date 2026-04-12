@@ -257,15 +257,24 @@ def main():
             draw_game_screen(main_board)
     
             # 1. Sprawdzanie czy przyszedł ruch od przeciwnika
-            enemy_move = net.receive()
-            if enemy_move:
-                # Format danych: "start_r,start_c:end_r,end_c"
-                start_str, end_str = enemy_move.split(":")
-                s_r, s_c = map(int, start_str.split(","))
-                e_r, e_c = map(int, end_str.split(","))
-                
-                main_board.select_piece(s_r, s_c)
-                main_board.select_piece(e_r, e_c)
+            raw_data = net.receive()
+            if raw_data:
+                # Rozbijamy paczkę na pojedyncze ruchy (separator |)
+                moves = raw_data.split("|")
+                for move in moves:
+                    if not move or ":" not in move:
+                        continue
+                    
+                    try:
+                        start_str, end_str = move.split(":")
+                        s_r, s_c = map(int, start_str.split(","))
+                        e_r, e_c = map(int, end_str.split(","))
+                        
+                        # Wykonujemy bicie/ruch na naszej planszy
+                        main_board.select_piece(s_r, s_c)
+                        main_board.select_piece(e_r, e_c)
+                    except Exception as e:
+                        print(f"Błąd synchronizacji ruchu: {e}")
 
             # 2. Wysyłanie własnego ruchu
             if event.type == pygame.MOUSEBUTTONDOWN and main_board.turn == my_id:
@@ -273,12 +282,14 @@ def main():
                 coords = main_board.get_clicked_pos(pos)
                 if coords:
                     old_selected = main_board.selected_piece
+                    was_jumping = main_board.must_continue_jump
                     main_board.select_piece(coords[0], coords[1])
                     
-                    # Jeśli ruch został wykonany (odznaczono pionek i zmieniono turę)
-                    if old_selected and not main_board.selected_piece:
-                        move_data = f"{old_selected[0]},{old_selected[1]}:{coords[0]},{coords[1]}"
+                    # SPRAWDZAMY CZY RUCH SIĘ ODBYŁ:
+                    if old_selected and old_selected != (coords[0], coords[1]):
+                        move_data = f"{old_selected[0]},{old_selected[1]}:{coords[0]},{coords[1]}|"
                         net.send(move_data)
+
         elif state == "STATS":
             draw_temp_ui("Ekran: Statystyki i Osiągnięcia")
         

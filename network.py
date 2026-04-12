@@ -25,6 +25,11 @@ class Network:
         """Odbiera dane o ruchu przeciwnika (nieblokujące)."""
         try:
             self.client.setblocking(False)
-            return self.client.recv(2048).decode()
-        except:
+            data = self.client.recv(2048).decode()
+            if not data:
+                return None
+            return data
+        except BlockingIOError:
+            return None
+        except Exception as e:
             return None

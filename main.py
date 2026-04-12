@@ -357,7 +357,15 @@ def main():
 
             elif state == "GAME_ONLINE":
                 # Wysyłanie własnego ruchu
-                if event.type == pygame.MOUSEBUTTONDOWN and main_board.turn == my_id:
+                if btn_back.is_clicked(event):
+                    if net:
+                        net.disconnect() 
+                    state = "MENU"
+                    main_board.selected_piece = None
+                    main_board.valid_moves = {}
+                    main_board.must_continue_jump = False
+
+                if event.type == pygame.MOUSEBUTTONDOWN and main_board.turn == my_id and not main_board.check_winner():
                     pos = pygame.mouse.get_pos()
                     coords = main_board.get_clicked_pos(pos)
                     if coords:

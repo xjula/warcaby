@@ -33,3 +33,9 @@ class Network:
             return None
         except Exception as e:
             return None
+
+    def disconnect(self):
+        try:
+            self.client.close()
+        except:
+            pass

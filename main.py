@@ -3,6 +3,8 @@ import sys
 from constants import *
 from ui import Button, IconButton
 from board import GameBoard
+from ai import get_best_move
+from network import Network
 
 pygame.init()
 
@@ -18,6 +20,8 @@ btn_2_players = btn_vs_pc = btn_online = btn_stats = btn_settings = None
 btn_res_small = btn_res_large = btn_fullscreen = btn_back = None
 main_board = None
 
+net = None
+my_id = None
 
 def init_ui():
     """Funkcja przeliczająca i układająca wszystkie przyciski na nowo względem obecnego rozmiaru okna."""
@@ -144,6 +148,7 @@ def draw_temp_ui(title_text):
 # --- GŁÓWNA PĘTLA GRY ---
 main_board = GameBoard(WIDTH, HEIGHT) # Inicjalizacja raz na start
 def main():
+    ai_timer = 0
     clock = pygame.time.Clock()
     state = "MENU"
 
@@ -167,8 +172,12 @@ def main():
                     main_board.create_starting_board()  # Reset planszy
                 elif btn_vs_pc.is_clicked(event):
                     state = "GAME_PC"
+                    main_board.create_starting_board()
                 elif btn_online.is_clicked(event):
+                    net = Network()
+                    my_id = net.player_id
                     state = "GAME_ONLINE"
+                    main_board.create_starting_board()
                 elif btn_stats.is_clicked(event):
                     state = "STATS"
                 elif btn_settings.is_clicked(event):
@@ -198,7 +207,20 @@ def main():
                         main_board.selected_piece = None
                         main_board.valid_moves = {}
 
-            elif state in ["GAME_PC", "GAME_ONLINE", "STATS"]:
+            elif state == "GAME_PC":
+                if btn_back.is_clicked(event):
+                    state = "MENU"
+
+                if event.type == pygame.MOUSEBUTTONDOWN and main_board.turn == 1:
+                    pos = pygame.mouse.get_pos()
+                    coords = main_board.get_clicked_pos(pos)
+                    if coords:
+                        main_board.select_piece(coords[0], coords[1])
+                    else:
+                        main_board.selected_piece = None
+                        main_board.valid_moves = {}
+
+            elif state in ["STATS"]:
                 if btn_back.is_clicked(event):
                     state = "MENU"
 
@@ -209,12 +231,57 @@ def main():
         elif state == "GAME_2P":
             draw_game_screen(main_board)
         elif state == "GAME_PC":
-            draw_temp_ui("Tryb: Gra z Komputerem")
+            draw_game_screen(main_board)
+
+        if state == "GAME_PC":
+            if main_board.turn == 2:
+                ai_timer += clock.get_time()
+                if ai_timer > 500:
+                    # Jeśli AI jest w trakcie bicia wielokrotnego, kontynuuj ruch tym samym pionkiem
+                    if main_board.must_continue_jump:
+                        # Pobierz dostępne bicia dla już wybranego pionka
+                        moves = main_board.valid_moves
+                        if moves:
+                            # Wybierz pierwsze lepsze bicie (AI w minimaxie już to przewidziało)
+                            end_pos = list(moves.keys())[0]
+                            main_board.select_piece(end_pos[0], end_pos[1])
+                    else:
+                        move = get_best_move(main_board, 2)
+                        if move:
+                            start_pos, end_pos = move
+                            main_board.select_piece(start_pos[0], start_pos[1])
+                            main_board.select_piece(end_pos[0], end_pos[1])
+                    ai_timer = 0
+                    
         elif state == "GAME_ONLINE":
-            draw_temp_ui("Tryb: Gra Online")
+            draw_game_screen(main_board)
+    
+            # 1. Sprawdzanie czy przyszedł ruch od przeciwnika
+            enemy_move = net.receive()
+            if enemy_move:
+                # Format danych: "start_r,start_c:end_r,end_c"
+                start_str, end_str = enemy_move.split(":")
+                s_r, s_c = map(int, start_str.split(","))
+                e_r, e_c = map(int, end_str.split(","))
+                
+                main_board.select_piece(s_r, s_c)
+                main_board.select_piece(e_r, e_c)
+
+            # 2. Wysyłanie własnego ruchu
+            if event.type == pygame.MOUSEBUTTONDOWN and main_board.turn == my_id:
+                pos = pygame.mouse.get_pos()
+                coords = main_board.get_clicked_pos(pos)
+                if coords:
+                    old_selected = main_board.selected_piece
+                    main_board.select_piece(coords[0], coords[1])
+                    
+                    # Jeśli ruch został wykonany (odznaczono pionek i zmieniono turę)
+                    if old_selected and not main_board.selected_piece:
+                        move_data = f"{old_selected[0]},{old_selected[1]}:{coords[0]},{coords[1]}"
+                        net.send(move_data)
         elif state == "STATS":
             draw_temp_ui("Ekran: Statystyki i Osiągnięcia")
-
+        
         pygame.display.flip()
         clock.tick(60)
 

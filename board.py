@@ -14,6 +14,7 @@ class GameBoard:
         self.board_height = self.rows * self.square_size
         self.start_x = (screen_width - self.board_width) // 2
         self.start_y = (screen_height - self.board_height) // 2 + 20
+        self.kings_this_game = 0
 
         # --- LOGIKA ---
         self.board_state = []
@@ -63,14 +64,18 @@ class GameBoard:
                     color = (100, 200, 100)  # Zielony dla zaznaczonego
                 pygame.draw.rect(surface, color, (x, y, self.square_size, self.square_size))
 
-                # Rysowanie kropek podpowiedzi
+                # Rysowanie kropek podpowiedzi (rozmiar proporcjonalny)
                 if (row, col) in self.valid_moves:
                     center_x = x + self.square_size // 2
                     center_y = y + self.square_size // 2
-                    pygame.draw.circle(surface, (0, 255, 0), (center_x, center_y), 10)
+                    dot_radius = max(2, int(self.square_size * 0.15))
+                    pygame.draw.circle(surface, (0, 255, 0), (center_x, center_y), dot_radius)
 
         # Rysowanie pionków
-        radius = self.square_size // 2 - 8
+        # Zamiast sztywnego odejmowania pikseli (radius = self.square_size // 2 - 8) mnożymy
+        radius = int(self.square_size * 0.4)
+        border_thickness = max(1, int(self.square_size * 0.04))
+
         for row in range(self.rows):
             for col in range(self.cols):
                 piece = self.board_state[row][col]
@@ -80,11 +85,13 @@ class GameBoard:
 
                     piece_color = PIECE_PLAYER_1 if piece in [1, 10] else PIECE_PLAYER_2
                     pygame.draw.circle(surface, piece_color, (center_x, center_y), radius)
-                    pygame.draw.circle(surface, PIECE_BORDER, (center_x, center_y), radius, 3)
+                    pygame.draw.circle(surface, PIECE_BORDER, (center_x, center_y), radius, border_thickness)
 
-                    # Oznaczenie damki
+                    # Oznaczenie damki (złoty pierścień)
                     if piece >= 10:
-                        pygame.draw.circle(surface, (212, 175, 55), (center_x, center_y), radius - 12, 5)
+                        king_radius = int(radius * 0.5)
+                        king_thickness = max(1, int(radius * 0.15))
+                        pygame.draw.circle(surface, (212, 175, 55), (center_x, center_y), king_radius, king_thickness)
 
     def get_all_valid_moves(self, player_id):
         all_moves = {}
@@ -191,7 +198,9 @@ class GameBoard:
                     self.must_continue_jump = True
                     return
 
-            if row == 0 and piece_val == 1: self.board_state[row][col] = 10
+            if row == 0 and piece_val == 1:
+                self.board_state[row][col] = 10
+                self.kings_this_game += 1
             if row == 7 and piece_val == 2: self.board_state[row][col] = 20
 
             self.selected_piece = None

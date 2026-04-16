@@ -13,6 +13,7 @@ pygame.init()
 current_w = WIDTH
 current_h = HEIGHT
 is_fullscreen = False
+SAVE_FILE = "current_game.json"
 
 SCREEN = pygame.display.set_mode((current_w, current_h))
 pygame.display.set_caption("Warcaby - Projekt")
@@ -20,6 +21,7 @@ pygame.display.set_caption("Warcaby - Projekt")
 # Globalne zmienne dla obiektów UI
 btn_2_players = btn_vs_pc = btn_online = btn_stats = btn_settings = None
 btn_res_small = btn_res_large = btn_fullscreen = btn_back = None
+btn_poddaj = None
 main_board = None
 
 net = None
@@ -28,7 +30,7 @@ my_id = None
 def init_ui():
     """Funkcja przeliczająca i układająca wszystkie przyciski na nowo względem obecnego rozmiaru okna."""
     global btn_2_players, btn_vs_pc, btn_online, btn_stats, btn_settings
-    global btn_res_small, btn_res_large, btn_fullscreen, btn_back
+    global btn_res_small, btn_res_large, btn_fullscreen, btn_back, btn_poddaj
     global main_board
 
     BASE_W, BASE_H = 900, 600
@@ -62,6 +64,7 @@ def init_ui():
     btn_fullscreen = Button(btn_x, start_y + (btn_spacing * 2), btn_w, btn_h, "Pełny ekran")
 
     btn_back = Button(int(20 * scale), int(20 * scale), int(150 * scale), int(50 * scale), "Powrót")
+    btn_poddaj = Button(int(20 * scale), current_h - int(50 * scale) - int(20 * scale), int(150 * scale), int(50 * scale), "Poddaj")
 
     main_board = GameBoard(current_w, current_h)
 
@@ -266,6 +269,20 @@ def draw_stats(stats):
     # Przycisk powrotu
     btn_back.draw(SCREEN)
 
+def save_current_game(board):
+    with open(SAVE_FILE, "w") as f:
+        json.dump(board.get_save_data(), f)
+
+def load_saved_game(board, target_mode):
+    if os.path.exists(SAVE_FILE):
+        with open(SAVE_FILE, "r") as f:
+            data = json.load(f)
+            if data.get("mode") == target_mode:
+                board.load_save_data(data)
+                return True
+    return False
+
+
 # --- GŁÓWNA PĘTLA GRY ---
 main_board = GameBoard(WIDTH, HEIGHT)  # Inicjalizacja raz na start
 
@@ -297,13 +314,17 @@ def main():
             # Obsługa kliknięć w zależności od obecnego ekranu
             if state == "MENU":
                 if btn_2_players.is_clicked(event):
+                    main_board.current_state = "GAME_2P"
+                    if not load_saved_game(main_board, "GAME_2P"):
+                        main_board.create_starting_board()
                     state = "GAME_2P"
-                    main_board.create_starting_board()
-                    game_recorded = False  # Reset flagi przy wejściu do nowej gry
+                    game_recorded = False
                 elif btn_vs_pc.is_clicked(event):
+                    main_board.current_state = "GAME_PC"
+                    if not load_saved_game(main_board, "GAME_PC"):
+                        main_board.create_starting_board()
                     state = "GAME_PC"
-                    main_board.create_starting_board()
-                    game_recorded = False  # Reset flagi przy wejściu do nowej gry
+                    game_recorded = False
                 elif btn_online.is_clicked(event):
                     net = Network()
                     my_id = net.player_id
@@ -327,6 +348,15 @@ def main():
 
             elif state == "GAME_2P":
                 if btn_back.is_clicked(event):
+                    winner = main_board.check_winner()
+
+                    if winner:
+                        main_board.create_starting_board()
+                        if os.path.exists(SAVE_FILE):
+                            os.remove(SAVE_FILE)
+                    else:
+                        save_current_game(main_board)
+
                     state = "MENU"
 
                 if event.type == pygame.MOUSEBUTTONDOWN:
@@ -340,6 +370,15 @@ def main():
 
             elif state == "GAME_PC":
                 if btn_back.is_clicked(event):
+                    winner = main_board.check_winner()
+
+                    if winner:
+                        main_board.create_starting_board()
+                        if os.path.exists(SAVE_FILE):
+                            os.remove(SAVE_FILE)
+                    else:
+                        save_current_game(main_board)
+
                     state = "MENU"
 
                 if event.type == pygame.MOUSEBUTTONDOWN and main_board.turn == 1:
@@ -359,7 +398,7 @@ def main():
                 # Wysyłanie własnego ruchu
                 if btn_back.is_clicked(event):
                     if net:
-                        net.disconnect() 
+                        net.disconnect()
                     state = "MENU"
                     main_board.selected_piece = None
                     main_board.valid_moves = {}
@@ -377,7 +416,44 @@ def main():
                             move_data = f"{old_selected[0]},{old_selected[1]}:{coords[0]},{coords[1]}|"
                             net.send(move_data)
 
+            # Obsługa przycisku Poddaj / Nowa gra
+            if state in ["GAME_2P", "GAME_PC"] and btn_poddaj.is_clicked(event):
+                winner = main_board.check_winner()
+
+                if state == "GAME_PC" and main_board.turn == 2 and not winner:
+                    pass
+                else:
+                    if winner:
+                        main_board.create_starting_board()
+                        if os.path.exists(SAVE_FILE): os.remove(SAVE_FILE)
+                    else:
+                        main_board.save_history_to_file()
+                        for r in range(8):
+                            for c in range(8):
+                                p = main_board.board_state[r][c]
+                                if main_board.turn == 1 and p in [1, 10]:
+                                    main_board.board_state[r][c] = 0
+                                elif main_board.turn == 2 and p in [2, 20]:
+                                    main_board.board_state[r][c] = 0
+                        if os.path.exists(SAVE_FILE): os.remove(SAVE_FILE)
+
         # --- LOGIKA POZA PĘTLĄ ZDARZEŃ ---
+        if state == "GAME_PC":
+            draw_game_screen(main_board)
+            winner = main_board.check_winner()
+
+            if main_board.turn == 1 or winner:
+                btn_poddaj.text = "Nowa Gra" if winner else "Poddaj"
+                btn_poddaj.draw(SCREEN)
+
+            if main_board.turn == 2 and not winner:
+                ai_timer += clock.get_time()
+                if ai_timer > 500:
+                    move = get_best_move(main_board, 2)
+                    if move:
+                        main_board.select_piece(move[0][0], move[0][1])
+                        main_board.select_piece(move[1][0], move[1][1])
+                    ai_timer = 0
         # Wykrywanie końca gry i aktualizacja statystyk
         if state in ["GAME_2P", "GAME_PC", "GAME_ONLINE"] and not game_recorded:
             winner = main_board.check_winner()
@@ -408,19 +484,30 @@ def main():
                 save_stats(stats)
                 game_recorded = True
 
+                if os.path.exists(SAVE_FILE):
+                    os.remove(SAVE_FILE)
+
         # Rysowanie interfejsu w zależności od stanu
         if state == "STATS":
             draw_stats(stats)
         elif state == "MENU":
             draw_menu()
+            if os.path.exists(SAVE_FILE):
+                pass
         elif state == "SETTINGS":
             draw_settings()
-        elif state == "GAME_2P":
+        elif state in ["GAME_2P", "GAME_PC"]:
             draw_game_screen(main_board)
+            winner = main_board.check_winner()
+            btn_poddaj.text = "Nowa Gra" if winner else "Poddaj"
+            btn_poddaj.draw(SCREEN)
         elif state == "GAME_PC":
             draw_game_screen(main_board)
+            winner = main_board.check_winner()
+            btn_poddaj.text = "Nowa Gra" if winner else "Poddaj"
+            btn_poddaj.draw(SCREEN)
             # Logika ruchu sztucznej inteligencji
-            if main_board.turn == 2:
+            if main_board.turn == 2 and not winner:
                 ai_timer += clock.get_time()
                 if ai_timer > 500:
                     if main_board.must_continue_jump:
@@ -456,6 +543,7 @@ def main():
 
         pygame.display.flip()
         clock.tick(60)
+
 
 
 if __name__ == "__main__":

@@ -23,6 +23,9 @@ class GameBoard:
         self.valid_moves = {}  # Słownik dostępnych ruchów dla wybranego pionka
         self.must_continue_jump = False
         self.create_starting_board()
+        self.move_history = []  # Przechowuje zapis ruchów np. "Czerwony: (5,2) -> (4,3)"
+        self.game_active = True  # Flaga określająca czy partia trwa
+        self.current_state = ""
 
     def create_starting_board(self):
         """Tworzy macierz 8x8. 0=puste, 1=czerwony, 2=biały, 10=czerwona damka, 20=biała damka."""
@@ -229,3 +232,37 @@ class GameBoard:
             return 2 if self.turn == 1 else 1
 
         return None
+
+    def record_move(self, start, end, captured=False):
+        color = "Czerwony" if self.turn == 1 else "Biały"
+        action = "zbija" if captured else "idzie na"
+        move_str = f"{color}: {start} {action} {end}"
+        self.move_history.append(move_str)
+
+    def save_history_to_file(self):
+        """Zapisuje listę ruchów do pliku tekstowego."""
+        if not self.move_history: return
+        with open("ostatnia_partia.txt", "w", encoding="utf-8") as f:
+            f.write("PRZEBIEG PARTII WARCABY\n")
+            f.write("-" * 30 + "\n")
+            for i, move in enumerate(self.move_history, 1):
+                f.write(f"{i}. {move}\n")
+
+    def get_save_data(self):
+        """Zwraca słownik ze stanem planszy do zapisu JSON."""
+        return {
+            "board_state": self.board_state,
+            "turn": self.turn,
+            "mode": self.current_state,
+            "must_continue_jump": self.must_continue_jump,
+            "selected_piece": self.selected_piece,
+            "move_history": self.move_history
+        }
+
+    def load_save_data(self, data):
+        """Odtwarza stan planszy z danych JSON."""
+        self.board_state = data["board_state"]
+        self.turn = data["turn"]
+        self.must_continue_jump = data["must_continue_jump"]
+        self.selected_piece = data["selected_piece"]
+        self.move_history = data.get("move_history", [])

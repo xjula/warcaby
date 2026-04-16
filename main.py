@@ -21,7 +21,7 @@ pygame.display.set_caption("Warcaby - Projekt")
 # Globalne zmienne dla obiektów UI
 btn_2_players = btn_vs_pc = btn_online = btn_stats = btn_settings = None
 btn_res_small = btn_res_large = btn_fullscreen = btn_back = None
-btn_poddaj = None
+btn_poddaj = btn_zapisz = None
 main_board = None
 
 net = None
@@ -30,7 +30,7 @@ my_id = None
 def init_ui():
     """Funkcja przeliczająca i układająca wszystkie przyciski na nowo względem obecnego rozmiaru okna."""
     global btn_2_players, btn_vs_pc, btn_online, btn_stats, btn_settings
-    global btn_res_small, btn_res_large, btn_fullscreen, btn_back, btn_poddaj
+    global btn_res_small, btn_res_large, btn_fullscreen, btn_back, btn_poddaj, btn_zapisz
     global main_board
 
     BASE_W, BASE_H = 900, 600
@@ -65,6 +65,7 @@ def init_ui():
 
     btn_back = Button(int(20 * scale), int(20 * scale), int(150 * scale), int(50 * scale), "Powrót")
     btn_poddaj = Button(int(20 * scale), current_h - int(50 * scale) - int(20 * scale), int(150 * scale), int(50 * scale), "Poddaj")
+    btn_zapisz = Button(current_w - int(180 * scale) - int(20 * scale), current_h - int(50 * scale) - int(20 * scale), int(180 * scale), int(50 * scale), "Zapisz ruchy")
 
     main_board = GameBoard(current_w, current_h)
 
@@ -427,7 +428,6 @@ def main():
                         main_board.create_starting_board()
                         if os.path.exists(SAVE_FILE): os.remove(SAVE_FILE)
                     else:
-                        main_board.save_history_to_file()
                         for r in range(8):
                             for c in range(8):
                                 p = main_board.board_state[r][c]
@@ -436,6 +436,10 @@ def main():
                                 elif main_board.turn == 2 and p in [2, 20]:
                                     main_board.board_state[r][c] = 0
                         if os.path.exists(SAVE_FILE): os.remove(SAVE_FILE)
+
+            if state in ["GAME_2P", "GAME_PC"]:
+                if btn_zapisz.is_clicked(event):
+                    main_board.save_history_to_file()
 
         # --- LOGIKA POZA PĘTLĄ ZDARZEŃ ---
         if state == "GAME_PC":
@@ -501,6 +505,7 @@ def main():
             winner = main_board.check_winner()
             btn_poddaj.text = "Nowa Gra" if winner else "Poddaj"
             btn_poddaj.draw(SCREEN)
+            btn_zapisz.draw(SCREEN)
         elif state == "GAME_PC":
             draw_game_screen(main_board)
             winner = main_board.check_winner()

@@ -1,4 +1,6 @@
 from constants import *
+import tkinter as tk
+from tkinter import filedialog
 
 
 # --- KLASA PLANSZY GRY ---
@@ -45,6 +47,8 @@ class GameBoard:
         self.turn = 1
         self.selected_piece = None
         self.must_continue_jump = False
+        self.move_history = []  # <--- TO CZYŚCI HISTORIĘ RUCHÓW
+        self.kings_this_game = 0  # <--- RESETUJE LICZNIK DAMEK DLA STATYSTYK
 
     def get_clicked_pos(self, pos):
         """Zamienia piksele myszki na (row, col) planszy."""
@@ -56,9 +60,26 @@ class GameBoard:
         return None
 
     def draw(self, surface):
+        font_size = int(self.square_size * 0.35)
+        font = pygame.font.SysFont("Arial", font_size, bold=True)
+        label_color = (50, 50, 50)  # Ciemnoszary kolor napisów
+
         # Rysowanie pól
         for row in range(self.rows):
+
+            row_label = font.render(str(8 - row), True, label_color)
+            label_x = self.start_x - row_label.get_width() - 10
+            label_y = self.start_y + row * self.square_size + (self.square_size - row_label.get_height()) // 2
+            surface.blit(row_label, (label_x, label_y))
+
             for col in range(self.cols):
+
+                if row == 0:
+                    col_label = font.render(chr(65 + col), True, label_color)
+                    col_x = self.start_x + col * self.square_size + (self.square_size - col_label.get_width()) // 2
+                    col_y = self.start_y + (self.rows * self.square_size) + 5
+                    surface.blit(col_label, (col_x, col_y))
+
                 x = self.start_x + col * self.square_size
                 y = self.start_y + row * self.square_size
                 color = BOARD_DARK if col % 2 == ((row + 1) % 2) else BOARD_LIGHT
@@ -189,6 +210,9 @@ class GameBoard:
 
             self.board_state[row][col] = piece_val
             self.board_state[old_r][old_c] = 0
+
+            self.record_move((old_r, old_c), (row, col), captured=len(captured) > 0)
+
             for cr, cc in captured:
                 self.board_state[cr][cc] = 0
 
@@ -236,17 +260,14 @@ class GameBoard:
     def record_move(self, start, end, captured=False):
         color = "Czerwony" if self.turn == 1 else "Biały"
         action = "zbija" if captured else "idzie na"
-        move_str = f"{color}: {start} {action} {end}"
+
+        cols_letters = "ABCDEFGH"
+        start_str = f"{cols_letters[start[1]]}{8 - start[0]}"
+        end_str = f"{cols_letters[end[1]]}{8 - end[0]}"
+
+        move_str = f"{color}: {start_str} {action} {end_str}"
         self.move_history.append(move_str)
 
-    def save_history_to_file(self):
-        """Zapisuje listę ruchów do pliku tekstowego."""
-        if not self.move_history: return
-        with open("ostatnia_partia.txt", "w", encoding="utf-8") as f:
-            f.write("PRZEBIEG PARTII WARCABY\n")
-            f.write("-" * 30 + "\n")
-            for i, move in enumerate(self.move_history, 1):
-                f.write(f"{i}. {move}\n")
 
     def get_save_data(self):
         """Zwraca słownik ze stanem planszy do zapisu JSON."""
@@ -266,3 +287,42 @@ class GameBoard:
         self.must_continue_jump = data["must_continue_jump"]
         self.selected_piece = data["selected_piece"]
         self.move_history = data.get("move_history", [])
+
+    def save_history_to_file(self):
+        """Otwiera eksplorator plików i zapisuje listę ruchów do wybranego pliku."""
+        if not self.move_history:
+            print("Brak ruchów do zapisania!")
+            return
+
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Plik tekstowy", "*.txt"), ("Wszystkie pliki", "*.*")],
+            initialfile="przebieg_gry.txt",
+            title="Wybierz miejsce zapisu przebiegu gry"
+        )
+
+        if file_path:
+            try:
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write("PRZEBIEG PARTII WARCABY\n")
+                    f.write("-" * 30 + "\n")
+                    for i, move in enumerate(self.move_history, 1):
+                        f.write(f"{i}. {move}\n")
+
+                    f.write("-" * 30 + "\n")
+                    winner = self.check_winner()
+                    if winner:
+                        name = "CZERWONY" if winner == 1 else "BIAŁY"
+                        f.write(f"STATUS: KONIEC GRY - WYGRAŁ {name}\n")
+                    else:
+                        name = "CZERWONEGO" if self.turn == 1 else "BIAŁEGO"
+                        f.write(f"STATUS: W TRAKCIE - RUCH {name}\n")
+                print(f"Pomyślnie zapisano: {file_path}")
+            except Exception as e:
+                print(f"Błąd podczas zapisu: {e}")
+
+        root.destroy()

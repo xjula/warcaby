@@ -1,6 +1,7 @@
 import sys
 import json
 import os
+import subprocess
 
 from constants import *
 from ui import Button, IconButton
@@ -27,11 +28,16 @@ main_board = None
 net = None
 my_id = None
 
+server_process = None
+server_created = False
+
 def init_ui():
     """Funkcja przeliczająca i układająca wszystkie przyciski na nowo względem obecnego rozmiaru okna."""
     global btn_2_players, btn_vs_pc, btn_online, btn_stats, btn_settings
     global btn_res_small, btn_res_large, btn_fullscreen, btn_back, btn_poddaj, btn_zapisz
     global main_board
+    global btn_create_game, btn_join_game
+
 
     BASE_W, BASE_H = 900, 600
     scale = min(current_w / BASE_W, current_h / BASE_H)
@@ -68,6 +74,10 @@ def init_ui():
     btn_zapisz = Button(current_w - int(180 * scale) - int(20 * scale), current_h - int(50 * scale) - int(20 * scale), int(180 * scale), int(50 * scale), "Zapisz ruchy")
 
     main_board = GameBoard(current_w, current_h)
+
+    #Menu Online
+    btn_create_game = Button(btn_x, start_y, btn_w, btn_h, "Stwórz grę (Serwer)")
+    btn_join_game = Button(btn_x, start_y + btn_spacing, btn_w, btn_h, "Dołącz do gry")
 
 def set_resolution(w, h, fullscreen=False):
     """Zmienia wielkość okna i odpala przeliczenie interfejsu."""
@@ -307,12 +317,11 @@ def main():
                 pygame.quit()
                 sys.exit()
 
-            # Globalna obsługa klawisza ESC
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 if state != "MENU":
                     state = "MENU"
 
-            # Obsługa kliknięć w zależności od obecnego ekranu
+            # --- OBSŁUGA KLIKNIĘĆ ---
             if state == "MENU":
                 if btn_2_players.is_clicked(event):
                     main_board.current_state = "GAME_2P"
@@ -327,15 +336,39 @@ def main():
                     state = "GAME_PC"
                     game_recorded = False
                 elif btn_online.is_clicked(event):
-                    net = Network()
-                    my_id = net.player_id
-                    state = "GAME_ONLINE"
-                    main_board.create_starting_board()
-                    game_recorded = False
+                    state = "ONLINE_MENU"
                 elif btn_stats.is_clicked(event):
                     state = "STATS"
                 elif btn_settings.is_clicked(event):
                     state = "SETTINGS"
+
+            elif state == "ONLINE_MENU":
+                if btn_back.is_clicked(event):
+                    state = "MENU"
+
+                # Przyciski online muszą być WEWNĄTRZ tego stanu
+                elif btn_create_game.is_clicked(event):
+                    try:
+                        subprocess.Popen([sys.executable, "server.py"])
+                        print("Serwer został uruchomiony.")
+                        net = Network("127.0.0.1")
+                        if net.player_id:
+                            my_id = net.player_id
+                            state = "GAME_ONLINE"
+                            main_board.create_starting_board()
+                    except Exception as e:
+                        print(f"Błąd startu serwera: {e}")
+
+                elif btn_join_game.is_clicked(event):
+                    print("Wprowadź IP serwera w konsoli...")
+                    target_ip = input("Podaj adres IP: ")
+                    net = Network(target_ip)
+                    if net.player_id:
+                        my_id = net.player_id
+                        state = "GAME_ONLINE"
+                        main_board.create_starting_board()
+                    else:
+                        print("Nie udało się połączyć z serwerem.")
 
             elif state == "SETTINGS":
                 if btn_back.is_clicked(event):
@@ -500,6 +533,14 @@ def main():
                 pass
         elif state == "SETTINGS":
             draw_settings()
+        elif state == "ONLINE_MENU":
+            SCREEN.fill(SQUARE_COLOR)  # Możesz użyć draw_checkered_background(SCREEN)
+            title_surf = Fonts.title.render("TRYB ONLINE", True, WHITE)
+            SCREEN.blit(title_surf, (current_w // 2 - title_surf.get_width() // 2, 50))
+
+            btn_create_game.draw(SCREEN)
+            btn_join_game.draw(SCREEN)
+            btn_back.draw(SCREEN)
         elif state in ["GAME_2P", "GAME_PC"]:
             draw_game_screen(main_board)
             winner = main_board.check_winner()

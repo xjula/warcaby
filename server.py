@@ -2,10 +2,11 @@ import socket
 import threading
 
 # Konfiguracja serwera
-HOST = '127.0.0.1' # Adres lokalny (do testów na jednym PC)
+HOST = '0.0.0.0' # Adres lokalny (do testów na jednym PC)
 PORT = 5555
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 server.bind((HOST, PORT))
 server.listen(2)
 

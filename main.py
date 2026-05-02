@@ -23,13 +23,13 @@ btn_2_players = btn_vs_pc = btn_online = btn_stats = btn_settings = None
 btn_res_small = btn_res_large = btn_fullscreen = btn_back = None
 btn_poddaj = btn_zapisz = None
 main_board = None
-
+btn_stats = btn_settings = btn_authors = None
 net = None
 my_id = None
 
 def init_ui():
     """Funkcja przeliczająca i układająca wszystkie przyciski na nowo względem obecnego rozmiaru okna."""
-    global btn_2_players, btn_vs_pc, btn_online, btn_stats, btn_settings
+    global btn_2_players, btn_vs_pc, btn_online, btn_stats, btn_settings, btn_authors
     global btn_res_small, btn_res_large, btn_fullscreen, btn_back, btn_poddaj, btn_zapisz
     global main_board
 
@@ -54,9 +54,11 @@ def init_ui():
     icon_x = current_w - (current_w // 12)
     icon_y_settings = current_h - (current_h // 8)
     icon_y_stats = current_h - 3 * (current_h // 8)
+    icon_y_authors = current_h - 5 * (current_h // 8)
 
     btn_stats = IconButton(icon_x, icon_y_stats, icon_size, "medal.png", "M")
     btn_settings = IconButton(icon_x, icon_y_settings, icon_size, "settings.png", "U")
+    btn_authors = IconButton(icon_x, icon_y_authors, icon_size, "authors.png", "A")
 
     # Ustawienia
     btn_res_small = Button(btn_x, start_y, btn_w, btn_h, "Małe okno (900x600)")
@@ -114,6 +116,7 @@ def draw_menu():
     btn_online.draw(SCREEN)
     btn_stats.draw(SCREEN)
     btn_settings.draw(SCREEN)
+    btn_authors.draw(SCREEN)
 
 def draw_settings():
     SCREEN.fill(SQUARE_COLOR)
@@ -197,13 +200,12 @@ def save_stats(stats):
 
 
 def draw_stats(stats):
-    # Tło szachownicy
-    draw_checkered_background(SCREEN)
+    SCREEN.fill(SQUARE_COLOR)
 
     scale = min(current_w / 900, current_h / 600)
 
     # Nagłówek główny
-    title_surf = Fonts.title.render("STATYSTYKI", True, BLACK)
+    title_surf = Fonts.title.render("STATYSTYKI", True, WHITE)
     title_rect = title_surf.get_rect(center=(current_w // 2, int(60 * scale)))
     SCREEN.blit(title_surf, title_rect)
 
@@ -213,10 +215,11 @@ def draw_stats(stats):
     bottom_card_w = int(260 * scale)
     top_card_w = (bottom_card_w * 3) + (margin * 2)
 
+
+    top_y = int(180 * scale)
+
     # KARTA GŁÓWNA ("OGÓLNE")
     top_x = (current_w - top_card_w) // 2
-    top_y = int(110 * scale)
-
     top_rect = pygame.Rect(top_x, top_y, top_card_w, card_h)
     pygame.draw.rect(SCREEN, CARD_BG, top_rect, border_radius=int(12 * scale))
 
@@ -268,6 +271,24 @@ def draw_stats(stats):
             SCREEN.blit(data_surf, (x + int(20 * scale), y + int(45 * scale) + j * int(22 * scale)))
 
     # Przycisk powrotu
+    btn_back.draw(SCREEN)
+
+
+def draw_authors():
+    SCREEN.fill(SQUARE_COLOR)
+    scale = min(current_w / 900, current_h / 600)
+
+    title_surf = Fonts.title.render("AUTORZY", True, WHITE)
+    title_rect = title_surf.get_rect(center=(current_w // 2, int(100 * scale)))
+    SCREEN.blit(title_surf, title_rect)
+
+    # Lista autorów
+    names = ["Natalia Węgrzyńska", "Julia Danilczuk", "Krzysztof Dębiec"]
+    for i, name in enumerate(names):
+        name_surf = Fonts.info.render(name, True, WHITE)
+        name_rect = name_surf.get_rect(center=(current_w // 2, int(250 * scale) + i * int(50 * scale)))
+        SCREEN.blit(name_surf, name_rect)
+
     btn_back.draw(SCREEN)
 
 def save_current_game(board):
@@ -332,6 +353,8 @@ def main():
                     state = "GAME_ONLINE"
                     main_board.create_starting_board()
                     game_recorded = False
+                elif btn_authors.is_clicked(event):
+                    state = "AUTHORS"
                 elif btn_stats.is_clicked(event):
                     state = "STATS"
                 elif btn_settings.is_clicked(event):
@@ -392,6 +415,9 @@ def main():
                         main_board.valid_moves = {}
 
             elif state == "STATS":
+                if btn_back.is_clicked(event):
+                    state = "MENU"
+            elif state == "AUTHORS":
                 if btn_back.is_clicked(event):
                     state = "MENU"
 
@@ -496,10 +522,13 @@ def main():
             draw_stats(stats)
         elif state == "MENU":
             draw_menu()
+            btn_authors.draw(SCREEN)
             if os.path.exists(SAVE_FILE):
                 pass
         elif state == "SETTINGS":
             draw_settings()
+        elif state == "AUTHORS":
+            draw_authors()
         elif state in ["GAME_2P", "GAME_PC"]:
             draw_game_screen(main_board)
             winner = main_board.check_winner()
